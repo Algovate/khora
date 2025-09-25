@@ -2,16 +2,13 @@ import React, { useState } from 'react';
 import { Box, Text, useApp, useInput, useStdin } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
-import { getApiKey, saveSessionToFile, saveHtmlToFile, saveHtmlPackage } from './config.js';
+import { getApiKey, getImageApiKey, saveSessionToFile, saveHtmlToFile, saveHtmlPackage, saveImageToFile } from './config.js';
 import { createChatGraph, toLangChainMessages, extractTextFromContent, generateSingleHtmlPage } from './graph.js';
+import { generateImage } from './imageService.js';
+import { Message } from './types.js';
+import { AVAILABLE_CHAT_MODELS, ChatModel } from './constants.js';
 import Logo from './Logo.js';
 import { WELCOME_TEXT, HELP_TEXT } from './prompts.js';
-
-type Message = {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-};
 
 export default function App(): React.ReactElement {
   const { exit } = useApp();
@@ -21,11 +18,7 @@ export default function App(): React.ReactElement {
   ]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
-  const [modelName, setModelName] = useState<string>('gemini-1.5-flash');
-  const AVAILABLE_MODELS = [
-    'gemini-1.5-flash',
-    'gemini-1.5-pro'
-  ];
+  const [modelName, setModelName] = useState<ChatModel>(AVAILABLE_CHAT_MODELS[0]);
   const [isPickingModel, setIsPickingModel] = useState(false);
   const [modelIndex, setModelIndex] = useState<number>(0);
 
@@ -49,15 +42,15 @@ export default function App(): React.ReactElement {
         return;
       }
       if (key.upArrow) {
-        setModelIndex(prev => (prev - 1 + AVAILABLE_MODELS.length) % AVAILABLE_MODELS.length);
+        setModelIndex(prev => (prev - 1 + AVAILABLE_CHAT_MODELS.length) % AVAILABLE_CHAT_MODELS.length);
         return;
       }
       if (key.downArrow) {
-        setModelIndex(prev => (prev + 1) % AVAILABLE_MODELS.length);
+        setModelIndex(prev => (prev + 1) % AVAILABLE_CHAT_MODELS.length);
         return;
       }
       if (key.return) {
-        const next = AVAILABLE_MODELS[modelIndex] ?? modelName;
+        const next = AVAILABLE_CHAT_MODELS[modelIndex] ?? modelName;
         setModelName(next);
         setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Model set to: ${next}` }]);
         setIsPickingModel(false);
@@ -75,7 +68,7 @@ export default function App(): React.ReactElement {
     const trimmed = value.trim();
     if (!trimmed) return;
 
-    // Slash command handling: /q, /quit, /exit, /clear, /help, /model, /reset, /save, /html
+    // Slash command handling: /q, /quit, /exit, /clear, /help, /model, /reset, /save, /html, /image
     if (trimmed.startsWith('/')) {
       const cmd = trimmed.slice(1).toLowerCase();
       if (cmd === 'q' || cmd === 'quit' || cmd === 'exit') {
@@ -96,12 +89,12 @@ export default function App(): React.ReactElement {
         const parts = trimmed.split(/\s+/);
         if (parts.length < 2) {
           // Open interactive picker
-          const currentIdx = Math.max(0, AVAILABLE_MODELS.indexOf(modelName));
+          const currentIdx = Math.max(0, AVAILABLE_CHAT_MODELS.indexOf(modelName));
           setModelIndex(currentIdx);
           setIsPickingModel(true);
           setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: 'Select a model with ↑/↓ and press Enter. Esc to cancel.' }]);
         } else {
-          const next = parts[1] ?? modelName;
+          const next = parts[1] as ChatModel ?? modelName;
           setModelName(next);
           setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Model set to: ${next}` }]);
         }
@@ -147,6 +140,27 @@ export default function App(): React.ReactElement {
         setInput('');
         return;
       }
+      if (cmd.startsWith('image')) {
+        const query = trimmed.replace(/^\/image\s*/, '');
+        if (!query) {
+          setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: 'Usage: /image <prompt>' }]);
+          setInput('');
+          return;
+        }
+        try {
+          setIsThinking(true);
+          const imageBuffer = await generateImage({ prompt: query });
+          const filePath = saveImageToFile(imageBuffer);
+          setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Image saved to: ${filePath}` }]);
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Image generation error: ${message}` }]);
+        } finally {
+          setIsThinking(false);
+        }
+        setInput('');
+        return;
+      }
       // Unknown command feedback
       setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Unknown command: ${trimmed}` }]);
       setInput('');
@@ -178,6 +192,7 @@ export default function App(): React.ReactElement {
   }
 
   const apiKey = getApiKey();
+  const imageApiKey = getImageApiKey();
 
   if (!apiKey) {
     return (
@@ -186,6 +201,7 @@ export default function App(): React.ReactElement {
         <Text color="magenta">System: Welcome to khora ⚡</Text>
         <Text color="yellow">No API key found.</Text>
         <Text>Set env var GOOGLE_API_KEY or KHORA_API_KEY and restart.</Text>
+        <Text>For image generation, also set KHORA_IMAGE_API_KEY or DASHSCOPE_API_KEY.</Text>
       </Box>
     );
   }
@@ -197,7 +213,7 @@ export default function App(): React.ReactElement {
         {isPickingModel && (
           <Box flexDirection="column" borderStyle="round" borderColor="cyan" padding={1} marginBottom={1}>
             <Text color="magenta">Model Picker</Text>
-            {AVAILABLE_MODELS.map((m, idx) => {
+            {AVAILABLE_CHAT_MODELS.map((m, idx) => {
               const label = `${idx === modelIndex ? '› ' : '  '}${m}${m === modelName ? '  (current)' : ''}`;
               return idx === modelIndex ? (
                 <Text key={m} color="cyan">{label}</Text>

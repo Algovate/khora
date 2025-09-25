@@ -1,15 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
-
-export type AppConfig = {
-  apiKey?: string;
-};
-
-const CONFIG_DIR = path.join(os.homedir(), '.khora');
-const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
-const SESSIONS_DIR = path.join(CONFIG_DIR, 'sessions');
-const PAGES_DIR = path.join(CONFIG_DIR, 'pages');
+import { AppConfig, SessionMessage, SavedHtmlPackage } from './types.js';
+import { CONFIG_PATH, SESSIONS_DIR, PAGES_DIR, IMAGES_DIR } from './constants.js';
+import { createSafeFilename, ensureDirectory, extractBetween } from './utils.js';
 
 export function getConfigPath(): string {
   return CONFIG_PATH;
@@ -25,7 +18,7 @@ export function readConfig(): AppConfig {
 }
 
 export function writeConfig(config: AppConfig): void {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  ensureDirectory(path.dirname(CONFIG_PATH));
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
 }
 
@@ -43,16 +36,27 @@ export function setApiKey(apiKey: string): void {
   writeConfig(cfg);
 }
 
-export type SessionMessage = { id: string; role: 'user' | 'assistant' | 'system'; content: string };
+export function getImageApiKey(): string | undefined {
+  // Prefer env vars commonly used for image generation
+  const fromEnv = process.env.KHORA_IMAGE_API_KEY || process.env.DASHSCOPE_API_KEY;
+  if (fromEnv && fromEnv.trim().length > 0) return fromEnv.trim();
+  const cfg = readConfig();
+  return cfg.imageApiKey?.trim();
+}
+
+export function setImageApiKey(apiKey: string): void {
+  const cfg = readConfig();
+  cfg.imageApiKey = apiKey.trim();
+  writeConfig(cfg);
+}
 
 export function ensureSessionsDir(): string {
-  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-  return SESSIONS_DIR;
+  return ensureDirectory(SESSIONS_DIR);
 }
 
 export function saveSessionToFile(messages: SessionMessage[], name?: string): string {
   const dir = ensureSessionsDir();
-  const safeName = (name || new Date().toISOString().replace(/[:.]/g, '-')).replace(/[^a-zA-Z0-9-_]/g, '_');
+  const safeName = createSafeFilename(name || 'session');
   const filePath = path.join(dir, `${safeName}.json`);
   const payload = { messages };
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
@@ -60,39 +64,22 @@ export function saveSessionToFile(messages: SessionMessage[], name?: string): st
 }
 
 export function ensurePagesDir(): string {
-  fs.mkdirSync(PAGES_DIR, { recursive: true });
-  return PAGES_DIR;
+  return ensureDirectory(PAGES_DIR);
 }
 
 export function saveHtmlToFile(html: string, name?: string): string {
   const dir = ensurePagesDir();
-  const base = (name || `page-${new Date().toISOString().replace(/[:.]/g, '-')}`).replace(/[^a-zA-Z0-9-_]/g, '_');
+  const base = createSafeFilename(name || 'page', 'page');
   const filePath = path.join(dir, `${base}.html`);
   fs.writeFileSync(filePath, html, 'utf8');
   return filePath;
 }
 
-export type SavedHtmlPackage = {
-  directory: string;
-  indexPath: string;
-  cssPath: string | undefined;
-  jsPath: string | undefined;
-};
-
-function extractBetween(html: string, tag: 'style' | 'script'): { content: string; without: string } {
-  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
-  const m = html.match(re);
-  if (!m) return { content: '', without: html };
-  const content = m[1] ?? '';
-  const without = html.replace(re, '');
-  return { content, without };
-}
-
 export function saveHtmlPackage(html: string, name?: string): SavedHtmlPackage {
   const dir = ensurePagesDir();
-  const base = (name || `site-${new Date().toISOString().replace(/[:.]/g, '-')}`).replace(/[^a-zA-Z0-9-_]/g, '_');
+  const base = createSafeFilename(name || 'site', 'site');
   const pkgDir = path.join(dir, base);
-  fs.mkdirSync(pkgDir, { recursive: true });
+  ensureDirectory(pkgDir);
 
   // Extract first <style> and <script>
   const cssRes = extractBetween(html, 'style');
@@ -118,4 +105,16 @@ export function saveHtmlPackage(html: string, name?: string): SavedHtmlPackage {
   fs.writeFileSync(indexPath, indexHtml, 'utf8');
 
   return { directory: pkgDir, indexPath, cssPath, jsPath };
+}
+
+export function ensureImagesDir(): string {
+  return ensureDirectory(IMAGES_DIR);
+}
+
+export function saveImageToFile(imageBuffer: Buffer, name?: string): string {
+  const dir = ensureImagesDir();
+  const base = createSafeFilename(name || 'image', 'image');
+  const filePath = path.join(dir, `${base}.png`);
+  fs.writeFileSync(filePath, imageBuffer);
+  return filePath;
 }

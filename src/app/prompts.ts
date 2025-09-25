@@ -10,9 +10,11 @@ export const HELP_TEXT = [
   '  /save [name]     Save conversation to ~/.khora/sessions/[name].json',
   '  /html <prompt>   Generate a single-page HTML and save to ~/.khora/pages',
   '  /htmlsplit <p>   Generate HTML, split CSS/JS to files, save as a package',
+  '  /image <prompt>  Generate an image and save to ~/.khora/images',
   '',
   'Tips:',
   '  Set GOOGLE_API_KEY or KHORA_API_KEY in your environment.',
+  '  Set KHORA_IMAGE_API_KEY or DASHSCOPE_API_KEY for image generation.',
   '  Ask anything to chat with the model.',
 ].join('\n');
 
