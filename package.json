@@ -8,7 +8,14 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/bin/khora.tsx",
-    "start": "node dist/bin/khora.js"
+    "start": "node dist/bin/khora.js",
+    "test": "node tests/integration/test-gen-html.js",
+    "test:api": "RUN_API_TESTS=true node tests/integration/test-gen-html.js",
+    "test:keep": "KEEP_FILES=true node tests/integration/test-gen-html.js",
+    "test:clean": "CLEAN_PROJECTS=true node tests/integration/test-gen-html.js",
+    "test:quick": "node tests/unit/quick-test.js",
+    "test:demo": "node tests/test-demo.js",
+    "test:all": "node tests/run-all.js"
   },
   "keywords": [],
   "author": "",
