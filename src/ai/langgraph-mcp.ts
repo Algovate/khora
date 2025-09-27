@@ -176,16 +176,15 @@ export class LangGraphMCPChat {
     const tools = this.mcpManager.getTools();
     const systemMessage = SystemMessageBuilder.buildWithMCPTools(tools);
 
-    const hasSystemMessage = messages.some(msg => msg instanceof SystemMessage);
+    // 移除所有现有的系统消息
+    const filteredMessages = messages.filter(msg => !(msg instanceof SystemMessage));
 
-    if (hasSystemMessage) {
-      // 替换第一个系统消息
-      const firstSystemIndex = messages.findIndex(msg => msg instanceof SystemMessage);
-      messages[firstSystemIndex] = systemMessage;
-    } else {
-      // 添加系统消息到开头
-      messages.unshift(systemMessage);
-    }
+    // 将系统消息放在最前面
+    filteredMessages.unshift(systemMessage);
+
+    // 清空原数组并重新填充
+    messages.length = 0;
+    messages.push(...filteredMessages);
   }
 
   private async processToolCalls(responseText: string): Promise<ChatResponse> {
