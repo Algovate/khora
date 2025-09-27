@@ -18,12 +18,88 @@ export enum CodeGenType {
   AUTO_DETECT = 'auto-detect'
 }
 
+// Code generation steps for different project types
+const GENERATION_STEPS = {
+  [CodeGenType.HTML_SINGLE]: [
+    'Analyzing requirements',
+    'Designing HTML structure',
+    'Creating CSS styles',
+    'Adding JavaScript functionality',
+    'Optimizing code',
+    'Finalizing single file'
+  ],
+  [CodeGenType.MULTI_FILE]: [
+    'Analyzing requirements',
+    'Designing project structure',
+    'Creating HTML template',
+    'Writing CSS styles',
+    'Implementing JavaScript',
+    'Organizing file structure',
+    'Creating package files'
+  ],
+  [CodeGenType.VUE_PROJECT]: [
+    'Analyzing requirements',
+    'Setting up Vue project structure',
+    'Creating main Vue components',
+    'Implementing routing',
+    'Adding state management',
+    'Writing component styles',
+    'Creating configuration files',
+    'Setting up build system'
+  ]
+};
+
+// Function to detect code sections being generated
+function detectCodeSections(content: string, detectedSections: string[]): void {
+  const sectionPatterns = [
+    { pattern: /<html[^>]*>/i, name: 'HTML Structure' },
+    { pattern: /<head[^>]*>/i, name: 'HTML Head' },
+    { pattern: /<style[^>]*>/i, name: 'CSS Styles' },
+    { pattern: /<script[^>]*>/i, name: 'JavaScript Code' },
+    { pattern: /<body[^>]*>/i, name: 'HTML Body' },
+    { pattern: /<div[^>]*class/i, name: 'Layout Elements' },
+    { pattern: /function\s+\w+/i, name: 'Functions' },
+    { pattern: /const\s+\w+\s*=/i, name: 'Variables' },
+    { pattern: /<template[^>]*>/i, name: 'Vue Template' },
+    { pattern: /export\s+default/i, name: 'Vue Component' },
+    { pattern: /package\.json/i, name: 'Package Config' },
+    { pattern: /\.css/i, name: 'CSS File' },
+    { pattern: /\.js/i, name: 'JavaScript File' }
+  ];
+
+  for (const { pattern, name } of sectionPatterns) {
+    if (pattern.test(content) && !detectedSections.includes(name)) {
+      detectedSections.push(name);
+    }
+  }
+}
+
 export interface CodeGenResult {
   type: CodeGenType;
   outputPath: string;
   files: string[];
   success: boolean;
   error?: string;
+}
+
+export interface CodeGenProgress {
+  stage: 'initializing' | 'generating' | 'saving' | 'completed' | 'error';
+  message: string;
+  progress?: number; // 0-100
+  details?: {
+    chunkCount?: number;
+    estimatedTime?: string;
+    currentTask?: string;
+    tokensProcessed?: number;
+    modelName?: string;
+    projectType?: string;
+    fileCount?: number;
+    currentStep?: string | undefined;
+    totalSteps?: number | undefined;
+    stepProgress?: number | undefined;
+    generatedFiles?: string[];
+    codeSections?: string[];
+  };
 }
 
 export interface ProjectInfo {
@@ -53,6 +129,192 @@ function getSystemPrompt(type: CodeGenType): string {
       return VUE_PROJECT_SYSTEM_PROMPT;
     default:
       return HTML_SINGLE_FILE_SYSTEM_PROMPT;
+  }
+}
+
+export async function generateCodeWithProgress(
+  prompt: string,
+  type: CodeGenType = CodeGenType.AUTO_DETECT,
+  modelName: string = 'gemini-2.5-flash',
+  onProgress?: (progress: CodeGenProgress) => void
+): Promise<CodeGenResult> {
+  const startTime = Date.now();
+  const projectTypeNames = {
+    [CodeGenType.HTML_SINGLE]: 'Single HTML File',
+    [CodeGenType.MULTI_FILE]: 'Multi-file Web Project',
+    [CodeGenType.VUE_PROJECT]: 'Vue 3 Application',
+    [CodeGenType.AUTO_DETECT]: 'Auto-detected Project'
+  };
+
+  try {
+    // Initialize progress
+    onProgress?.({
+      stage: 'initializing',
+      message: 'Initializing code generation...',
+      progress: 0,
+      details: {
+        modelName,
+        currentTask: 'Setting up generation environment'
+      }
+    });
+
+    // Auto-detect type if not specified
+    if (type === CodeGenType.AUTO_DETECT) {
+      onProgress?.({
+        stage: 'initializing',
+        message: 'Analyzing requirements and detecting project type...',
+        progress: 10,
+        details: {
+          modelName,
+          currentTask: 'Analyzing prompt for project type',
+          tokensProcessed: 0
+        }
+      });
+      
+      // Simulate analysis time
+      await new Promise(resolve => setTimeout(resolve, 300));
+      type = detectCodeGenType(prompt);
+    }
+
+    onProgress?.({
+      stage: 'generating',
+      message: `Generating ${projectTypeNames[type]}...`,
+      progress: 20,
+      details: {
+        modelName,
+        projectType: projectTypeNames[type],
+        currentTask: 'Preparing AI model and prompts'
+      }
+    });
+
+    const model = createModel(modelName);
+    const systemPrompt = getSystemPrompt(type);
+    
+    // Stream the AI response
+    const stream = await model.stream([
+      new SystemMessage(systemPrompt),
+      new HumanMessage(prompt)
+    ]);
+
+    let fullResponse = '';
+    let chunkCount = 0;
+    let lastUpdateTime = 0;
+    let estimatedTokens = 0;
+    let currentStepIndex = 0;
+    let detectedCodeSections: string[] = [];
+    
+    const steps = GENERATION_STEPS[type as keyof typeof GENERATION_STEPS] || GENERATION_STEPS[CodeGenType.HTML_SINGLE];
+    
+    onProgress?.({
+      stage: 'generating',
+      message: 'AI is generating code...',
+      progress: 30,
+      details: {
+        modelName,
+        projectType: projectTypeNames[type],
+        currentTask: 'AI model is processing your request',
+        chunkCount: 0,
+        tokensProcessed: 0,
+        estimatedTime: 'Calculating...',
+        currentStep: steps[0],
+        totalSteps: steps.length,
+        stepProgress: 0,
+        codeSections: []
+      }
+    });
+
+    for await (const chunk of stream) {
+      if (chunk.content) {
+        const content = typeof chunk.content === 'string' ? chunk.content : chunk.content.toString();
+        fullResponse += content;
+        chunkCount++;
+        estimatedTokens += content.length / 4; // Rough token estimation
+        
+        // Detect code sections being generated
+        detectCodeSections(content, detectedCodeSections);
+        
+        // Update progress less frequently for better UX
+        const now = Date.now();
+        if (now - lastUpdateTime > 500 || chunkCount % 5 === 0) {
+          const estimatedProgress = Math.min(30 + (chunkCount * 1.5), 70);
+          const elapsed = (now - startTime) / 1000;
+          const estimatedTotal = (elapsed / estimatedProgress) * 100;
+          const remaining = Math.max(0, estimatedTotal - elapsed);
+          const estimatedTime = remaining > 0 ? `${Math.round(remaining)}s remaining` : 'Almost done...';
+          
+          // Estimate current step based on progress
+          const stepProgress = Math.min(Math.floor((estimatedProgress - 30) / (40 / steps.length)), steps.length - 1);
+          currentStepIndex = Math.max(0, Math.min(stepProgress, steps.length - 1));
+          
+          onProgress?.({ 
+            stage: 'generating', 
+            message: `AI is generating code... (${chunkCount} chunks)`, 
+            progress: Math.round(estimatedProgress),
+            details: {
+              modelName,
+              projectType: projectTypeNames[type],
+              currentTask: 'AI model is writing code',
+              chunkCount,
+              tokensProcessed: Math.round(estimatedTokens),
+              estimatedTime,
+              currentStep: steps[currentStepIndex],
+              totalSteps: steps.length,
+              stepProgress: currentStepIndex,
+              codeSections: detectedCodeSections.slice(-3) // Show last 3 detected sections
+            }
+          });
+          lastUpdateTime = now;
+        }
+      }
+    }
+
+    onProgress?.({
+      stage: 'saving',
+      message: 'Processing and saving generated files...',
+      progress: 80,
+      details: {
+        modelName,
+        projectType: projectTypeNames[type],
+        currentTask: 'Parsing code and creating project structure',
+        chunkCount,
+        tokensProcessed: Math.round(estimatedTokens),
+        estimatedTime: 'Almost done...',
+        currentStep: steps[steps.length - 1], // Last step
+        totalSteps: steps.length,
+        stepProgress: steps.length - 1,
+        codeSections: detectedCodeSections
+      }
+    });
+
+    // Save the generated code
+    const result = await saveGeneratedCode(fullResponse, type, prompt);
+    
+    const totalTime = (Date.now() - startTime) / 1000;
+    onProgress?.({
+      stage: 'completed',
+      message: 'Code generation completed!',
+      progress: 100,
+      details: {
+        modelName,
+        projectType: projectTypeNames[type],
+        currentTask: 'All done!',
+        chunkCount,
+        tokensProcessed: Math.round(estimatedTokens),
+        fileCount: result.files.length,
+        estimatedTime: `Completed in ${totalTime.toFixed(1)}s`,
+        currentStep: 'All steps completed',
+        totalSteps: steps.length,
+        stepProgress: steps.length,
+        generatedFiles: result.files,
+        codeSections: detectedCodeSections
+      }
+    });
+    
+    return result;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    onProgress?.({ stage: 'error', message: `Error: ${errorMessage}`, progress: 0 });
+    throw error;
   }
 }
 

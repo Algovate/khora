@@ -10,17 +10,40 @@ import Logo from './Logo.js';
 import { WELCOME_TEXT } from './prompts.js';
 import { CommandHandler, CommandContext } from './commandHandler.js';
 
+// Utility function to generate unique IDs
+function generateUniqueId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 export default function App(): React.ReactElement {
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
   const [messages, setMessages] = useState<Message[]>([
-    { id: 'sys-1', role: 'system', content: WELCOME_TEXT }
+    { id: 'sys-welcome', role: 'system', content: WELCOME_TEXT }
   ]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [modelName, setModelName] = useState<ChatModel>(AVAILABLE_CHAT_MODELS[0]);
   const [isPickingModel, setIsPickingModel] = useState(false);
   const [modelIndex, setModelIndex] = useState(0);
+
+  // Check if raw mode is supported, if not show error
+  if (!isRawModeSupported) {
+    return (
+      <Box flexDirection="column" padding={2}>
+        <Logo />
+        <Text color="red">
+          Error: Raw mode is not supported in this terminal environment.
+        </Text>
+        <Text>
+          Please run Khora in a proper terminal (not in a CI/CD pipeline or non-interactive environment).
+        </Text>
+        <Text color="cyan">
+          Press any key to exit...
+        </Text>
+      </Box>
+    );
+  }
 
   useInput((input, key) => {
     if (isPickingModel) {
@@ -31,10 +54,12 @@ export default function App(): React.ReactElement {
       } else if (key.return) {
         setModelName(AVAILABLE_CHAT_MODELS[modelIndex] || AVAILABLE_CHAT_MODELS[0]);
         setIsPickingModel(false);
-        setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Model set to: ${AVAILABLE_CHAT_MODELS[modelIndex]}` }]);
+        const sysId = generateUniqueId('sys');
+        setMessages(prev => [...prev, { id: sysId, role: 'system', content: `Model set to: ${AVAILABLE_CHAT_MODELS[modelIndex]}` }]);
       } else if (key.escape) {
         setIsPickingModel(false);
-        setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: 'Model selection cancelled.' }]);
+        const cancelId = generateUniqueId('sys');
+        setMessages(prev => [...prev, { id: cancelId, role: 'system', content: 'Model selection cancelled.' }]);
       }
       return;
     }
@@ -48,7 +73,8 @@ export default function App(): React.ReactElement {
     const trimmed = value.trim();
     if (!trimmed) return;
 
-    setMessages(prev => [...prev, { id: `user-${Date.now()}`, role: 'user', content: trimmed }]);
+    const userId = generateUniqueId('user');
+    setMessages(prev => [...prev, { id: userId, role: 'user', content: trimmed }]);
     setInput('');
 
     // Handle slash commands
@@ -70,7 +96,8 @@ export default function App(): React.ReactElement {
           const currentIdx = Math.max(0, AVAILABLE_CHAT_MODELS.indexOf(modelName));
           setModelIndex(currentIdx);
           setIsPickingModel(true);
-          setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: 'Select a model with ↑/↓ and press Enter. Esc to cancel.' }]);
+          const selectId = generateUniqueId('sys');
+          setMessages(prev => [...prev, { id: selectId, role: 'system', content: 'Select a model with ↑/↓ and press Enter. Esc to cancel.' }]);
         } else if (trimmed.startsWith('/q') || trimmed.startsWith('/quit') || trimmed.startsWith('/exit')) {
           exit();
         }
@@ -82,15 +109,18 @@ export default function App(): React.ReactElement {
     try {
       setIsThinking(true);
       const graph = createChatGraph(modelName);
+      const tempUserId = generateUniqueId('user');
       const res = await graph.invoke({
-        messages: toLangChainMessages(messages.concat({ id: `user-${Date.now()}`, role: 'user', content: trimmed }))
+        messages: toLangChainMessages(messages.concat({ id: tempUserId, role: 'user', content: trimmed }))
       });
       const last = (res as any)?.messages?.slice(-1)[0];
       const text = extractTextFromContent(last?.content);
-      setMessages(prev => [...prev, { id: `ai-${Date.now()}`, role: 'assistant', content: text }]);
+      const aiId = generateUniqueId('ai');
+      setMessages(prev => [...prev, { id: aiId, role: 'assistant', content: text }]);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Error: ${message}` }]);
+      const errorId = generateUniqueId('sys');
+      setMessages(prev => [...prev, { id: errorId, role: 'system', content: `Error: ${message}` }]);
     } finally {
       setIsThinking(false);
     }
