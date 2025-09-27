@@ -5,8 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ensureDirectory, createSafeFilename } from '../utils.js';
-import { CodeGenType } from '../constants/generation.js';
-import { FILE_SIZE_LIMITS, ERROR_MESSAGES } from '../constants/generation.js';
+import { CodeGenType, ERROR_MESSAGES } from '../constants.js';
 import type { CodeGenResult, FileValidationResult } from '../types/generation.js';
 
 /**

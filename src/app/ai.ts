@@ -1,9 +1,8 @@
-import { StateGraph, MessagesAnnotation, END } from '@langchain/langgraph';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
 import { getApiKey } from './config.js';
 
-function createModel(modelName: string = 'gemini-2.5-flash'): ChatGoogleGenerativeAI {
+export function createModel(modelName: string = 'gemini-2.5-flash'): ChatGoogleGenerativeAI {
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error('Missing API key. Set GOOGLE_API_KEY or run login.');
@@ -11,18 +10,9 @@ function createModel(modelName: string = 'gemini-2.5-flash'): ChatGoogleGenerati
   return new ChatGoogleGenerativeAI({ model: modelName, apiKey });
 }
 
-export function createChatGraph(modelName?: string) {
-  async function modelNode(state: typeof MessagesAnnotation.State): Promise<Partial<typeof MessagesAnnotation.State>> {
-    const model = createModel(modelName);
-    const res = await model.invoke(state.messages as BaseMessage[]);
-    return { messages: [res] };
-  }
-
-  const builder = new StateGraph(MessagesAnnotation)
-    .addNode('model', modelNode)
-    .addEdge('__start__', 'model')
-    .addEdge('model', END);
-  return builder.compile();
+export async function invokeChatModel(messages: BaseMessage[], modelName?: string): Promise<BaseMessage> {
+  const model = createModel(modelName);
+  return await model.invoke(messages);
 }
 
 export function toLangChainMessages(messages: { role: 'system' | 'user' | 'assistant'; content: string }[]): BaseMessage[] {

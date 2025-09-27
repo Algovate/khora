@@ -3,12 +3,12 @@ import { Box, Text, useApp, useInput, useStdin } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
 import { getApiKey } from './config.js';
-import { createChatGraph, toLangChainMessages, extractTextFromContent } from './graph.js';
-import { Message } from './types.js';
+import { invokeChatModel, toLangChainMessages, extractTextFromContent } from './ai.js';
+import { Message, CommandContext, CommandResult } from './types.js';
 import { AVAILABLE_CHAT_MODELS, ChatModel } from './constants.js';
 import Logo from './Logo.js';
 import { WELCOME_TEXT } from './prompts.js';
-import { CommandHandler, CommandContext } from './commandHandler.js';
+import { CommandHandler } from './commands.js';
 
 // Utility function to generate unique IDs
 function generateUniqueId(prefix: string): string {
@@ -108,13 +108,10 @@ export default function App(): React.ReactElement {
     // Regular chat with AI
     try {
       setIsThinking(true);
-      const graph = createChatGraph(modelName);
       const tempUserId = generateUniqueId('user');
-      const res = await graph.invoke({
-        messages: toLangChainMessages(messages.concat({ id: tempUserId, role: 'user', content: trimmed }))
-      });
-      const last = (res as any)?.messages?.slice(-1)[0];
-      const text = extractTextFromContent(last?.content);
+      const langChainMessages = toLangChainMessages(messages.concat({ id: tempUserId, role: 'user', content: trimmed }));
+      const res = await invokeChatModel(langChainMessages, modelName);
+      const text = extractTextFromContent(res?.content);
       const aiId = generateUniqueId('ai');
       setMessages(prev => [...prev, { id: aiId, role: 'assistant', content: text }]);
     } catch (e) {

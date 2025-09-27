@@ -26,13 +26,6 @@ export interface CodeGenProgress {
 }
 
 export interface CodeGenProgressDetails {
-  chunkCount?: number;
-  estimatedTime?: string;
-  currentTask?: string;
-  tokensProcessed?: number;
-  modelName?: string;
-  projectType?: string;
-  fileCount?: number;
   currentStep?: string;
   totalSteps?: number;
   stepProgress?: number;

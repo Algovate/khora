@@ -1,6 +1,4 @@
-import { StateGraph, MessagesAnnotation, END } from '@langchain/langgraph';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
+import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import {
   HTML_SINGLE_FILE_SYSTEM_PROMPT,
   MULTI_FILE_SYSTEM_PROMPT,
@@ -13,13 +11,9 @@ import { ensureDirectory, createSafeFilename } from './utils.js';
 import { createProgressBar, buildDetailedProgressContent } from './utils/progress.js';
 import { validateProgress, validateStepProgress } from './utils/validation.js';
 import { extractTextFromContent, detectCodeSections } from './utils/codeDetection.js';
+import { invokeChatModel, toLangChainMessages, createModel } from './ai.js';
 
-export enum CodeGenType {
-  HTML_SINGLE = 'html-single',
-  MULTI_FILE = 'multi-file',
-  VUE_PROJECT = 'vue-project',
-  AUTO_DETECT = 'auto-detect'
-}
+import { CodeGenType } from './constants.js';
 
 // Code generation steps for different project types
 const GENERATION_STEPS = {
@@ -90,13 +84,6 @@ export interface ProjectInfo {
   files: string[];
 }
 
-function createModel(modelName: string = 'gemini-2.5-flash'): ChatGoogleGenerativeAI {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error('Missing API key. Set GOOGLE_API_KEY or run login.');
-  }
-  return new ChatGoogleGenerativeAI({ model: modelName, apiKey });
-}
 
 function getSystemPrompt(type: CodeGenType): string {
   switch (type) {
@@ -312,16 +299,15 @@ export async function generateCode(
       console.log(`[generateCode] Auto-detected code generation type: ${type}`);
     }
 
-    const graph = createCodeGenGraph(type, modelName);
     const systemPrompt = getSystemPrompt(type);
     console.log(`[generateCode] Using system prompt: ${systemPrompt.substring(0, 100)}...`);
     const sys = new SystemMessage(systemPrompt);
     const userMsg = new HumanMessage(prompt);
+    const messages = [sys, userMsg];
 
-    console.log(`[generateCode] Invoking graph with system and user messages...`);
-    const res = await graph.invoke({ messages: [sys, userMsg] });
-    const last = (res as any)?.messages?.slice(-1)[0];
-    const content = extractTextFromContent(last?.content);
+    console.log(`[generateCode] Invoking model with system and user messages...`);
+    const res = await invokeChatModel(messages, modelName);
+    const content = extractTextFromContent(res?.content);
 
     console.log(`[generateCode] Model response content (truncated): ${typeof content === 'string' ? content.substring(0, 200) : '[non-string content]'}`);
 
@@ -365,19 +351,6 @@ function detectCodeGenType(prompt: string): CodeGenType {
   return CodeGenType.HTML_SINGLE;
 }
 
-function createCodeGenGraph(type: CodeGenType, modelName?: string) {
-  async function modelNode(state: typeof MessagesAnnotation.State): Promise<Partial<typeof MessagesAnnotation.State>> {
-    const model = createModel(modelName);
-    const res = await model.invoke(state.messages as BaseMessage[]);
-    return { messages: [res] };
-  }
-
-  const builder = new StateGraph(MessagesAnnotation)
-    .addNode('model', modelNode)
-    .addEdge('__start__', 'model')
-    .addEdge('model', END);
-  return builder.compile();
-}
 
 
 async function saveGeneratedCode(

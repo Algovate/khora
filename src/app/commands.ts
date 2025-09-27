@@ -1,13 +1,8 @@
-import { generateCode, generateCodeWithProgress, CodeGenType, CodeGenProgress, listGeneratedProjects, cleanGeneratedProjects } from './codeGenService.js';
+import { generateCode, generateCodeWithProgress, CodeGenProgress, listGeneratedProjects, cleanGeneratedProjects } from './generator.js';
+import { CodeGenType } from './constants.js';
 import { saveSessionToFile } from './config.js';
+import { CommandContext, CommandResult } from './types.js';
 
-export interface CommandContext {
-  messages: Array<{ id: string; role: 'user' | 'assistant' | 'system'; content: string }>;
-  setMessages: (fn: (prev: any[]) => any[]) => void;
-  setIsThinking: (thinking: boolean) => void;
-  setInput: (input: string) => void;
-  modelName: string;
-}
 
 export class CommandHandler {
   private context: CommandContext;
