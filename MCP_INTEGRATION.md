@@ -10,6 +10,8 @@ Khora 现在支持 MCP (Model Context Protocol)，允许您连接外部工具和
 - ⚙️ 灵活的服务器配置管理
 - 🔄 自动连接和断开管理
 - 📋 实时状态监控
+- 🤖 **AI 自动工具调用** - AI 可以在聊天中自动使用 MCP 工具
+- 🔧 **智能工具集成** - 工具调用结果自动集成到 AI 回复中
 
 ## 可用命令
 
@@ -69,6 +71,31 @@ Khora 现在支持 MCP (Model Context Protocol)，允许您连接外部工具和
 ```bash
 /mcp-call filesystem_read_file {"path": "/path/to/file.txt"}
 ```
+
+### 5. 在聊天中使用 MCP 工具
+
+AI 现在可以自动使用 MCP 工具来回答您的问题：
+
+**示例对话：**
+```
+用户: 请读取 /tmp/test.txt 文件的内容
+
+AI: 我来帮您读取文件内容。
+
+{"tool": "read_text_file", "arguments": {"path": "/tmp/test.txt"}}
+
+**Tool Result (read_text_file):**
+这是文件的内容...
+
+🔧 Used MCP tools:
+- read_text_file
+```
+
+**更多示例：**
+- "列出 /tmp 目录下的所有文件"
+- "创建一个名为 test.txt 的文件，内容为 'Hello World'"
+- "搜索包含 'test' 的文件"
+- "获取 /tmp/test.txt 文件的详细信息"
 
 ## 配置文件
 

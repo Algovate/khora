@@ -23,6 +23,7 @@
   "type": "module",
   "dependencies": {
     "@langchain/google-genai": "^0.2.18",
+    "@langchain/langgraph": "^0.4.9",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "figlet": "^1.9.3",
     "gradient-string": "^3.0.0",

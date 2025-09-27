@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { AppConfig, SessionMessage, MCPServerConfig } from './types.js';
+import { AppConfig, SessionMessage, MCPServerConfig } from '../types/types.js';
 import { CONFIG_PATH, SESSIONS_DIR } from './constants.js';
-import { createSafeFilename, ensureDirectory } from './utils.js';
+import { createSafeFilename, ensureDirectory } from '../utils/utils.js';
 
 export function getConfigPath(): string {
   return CONFIG_PATH;

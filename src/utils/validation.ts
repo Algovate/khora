@@ -2,7 +2,7 @@
  * Validation utilities for code generation
  */
 
-import { FILE_SIZE_LIMITS, CodeGenType } from '../constants.js';
+import { FILE_SIZE_LIMITS, CodeGenType } from '../core/constants.js';
 
 /**
  * Validates progress values to prevent negative numbers

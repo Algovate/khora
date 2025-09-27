@@ -4,8 +4,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { ensureDirectory, createSafeFilename } from '../utils.js';
-import { CodeGenType, ERROR_MESSAGES } from '../constants.js';
+import { ensureDirectory, createSafeFilename } from './utils.js';
+import { CodeGenType, ERROR_MESSAGES } from '../core/constants.js';
 import type { CodeGenResult, FileValidationResult } from '../types/generation.js';
 
 /**

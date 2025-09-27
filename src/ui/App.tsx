@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useApp, useInput, useStdin } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
-import { getApiKey, getMCPServers } from './config.js';
-import { invokeChatModel, toLangChainMessages, extractTextFromContent } from './ai.js';
-import { Message, CommandContext, CommandResult } from './types.js';
-import { AVAILABLE_CHAT_MODELS, ChatModel } from './constants.js';
+import { getApiKey, getMCPServers } from '../core/config.js';
+import { toLangChainMessages, extractTextFromContent } from '../ai/ai.js';
+import { chatWithMCPSimple } from '../ai/langgraph-mcp.js';
+import { Message, CommandContext, CommandResult } from '../types/types.js';
+import { AVAILABLE_CHAT_MODELS, ChatModel } from '../core/constants.js';
 import Logo from './Logo.js';
-import { WELCOME_TEXT } from './prompts.js';
-import { CommandHandler } from './commands.js';
-import { MCPManager } from './mcp.js';
+import { WELCOME_TEXT } from '../core/prompts.js';
+import { CommandHandler } from '../core/commands.js';
+import { MCPManager } from '../mcp/mcp.js';
 
 // Utility function to generate unique IDs
 function generateUniqueId(prefix: string): string {
@@ -133,15 +134,29 @@ export default function App(): React.ReactElement {
       }
     }
 
-    // Regular chat with AI
+    // Regular chat with AI using LangGraph
     try {
       setIsThinking(true);
       const tempUserId = generateUniqueId('user');
       const langChainMessages = toLangChainMessages(messages.concat({ id: tempUserId, role: 'user', content: trimmed }));
-      const res = await invokeChatModel(langChainMessages, modelName);
-      const text = extractTextFromContent(res?.content);
+
+      // Use simplified LangGraph for MCP integration
+      const res = await chatWithMCPSimple(trimmed, mcpManager, messages);
+      const text = res.content;
+
       const aiId = generateUniqueId('ai');
       setMessages(prev => [...prev, { id: aiId, role: 'assistant', content: text }]);
+
+      // Show tool usage summary if any tools were called
+      if (res.toolCalls && res.toolCalls.length > 0) {
+        const toolSummary = res.toolCalls.map((tc: any) => `- ${tc.tool}`).join('\n');
+        const toolId = generateUniqueId('sys');
+        setMessages(prev => [...prev, {
+          id: toolId,
+          role: 'system',
+          content: `🔧 Used MCP tools (${res.toolCalls!.length}):\n${toolSummary}`
+        }]);
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       const errorId = generateUniqueId('sys');

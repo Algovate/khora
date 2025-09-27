@@ -7,11 +7,11 @@ import {
 import { getApiKey } from './config.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ensureDirectory, createSafeFilename } from './utils.js';
-import { createProgressBar, buildDetailedProgressContent } from './utils/progress.js';
-import { validateProgress, validateStepProgress } from './utils/validation.js';
-import { extractTextFromContent, detectCodeSections } from './utils/codeDetection.js';
-import { invokeChatModel, toLangChainMessages, createModel } from './ai.js';
+import { ensureDirectory, createSafeFilename } from '../utils/utils.js';
+import { createProgressBar, buildDetailedProgressContent } from '../utils/progress.js';
+import { validateProgress, validateStepProgress } from '../utils/validation.js';
+import { extractTextFromContent, detectCodeSections } from '../utils/codeDetection.js';
+import { invokeChatModel, toLangChainMessages, createModel } from '../ai/ai.js';
 
 import { CodeGenType } from './constants.js';
 

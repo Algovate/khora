@@ -1,8 +1,8 @@
 import { generateCode, generateCodeWithProgress, CodeGenProgress, listGeneratedProjects, cleanGeneratedProjects } from './generator.js';
 import { CodeGenType } from './constants.js';
 import { saveSessionToFile, getMCPServers, addMCPServer, removeMCPServer, setMCPServers } from './config.js';
-import { CommandContext, CommandResult } from './types.js';
-import { MCPManager } from './mcp.js';
+import { CommandContext, CommandResult } from '../types/types.js';
+import { MCPManager } from '../mcp/mcp.js';
 
 
 export class CommandHandler {

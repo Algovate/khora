@@ -2,7 +2,7 @@
  * Progress display utilities
  */
 
-import { PROGRESS_CONFIG, PROGRESS_CHARS, STAGE_EMOJIS, UI_LIMITS, TIMING_CONFIG } from '../constants.js';
+import { PROGRESS_CONFIG, PROGRESS_CHARS, STAGE_EMOJIS, UI_LIMITS, TIMING_CONFIG } from '../core/constants.js';
 import type { CodeGenProgress } from '../types/generation.js';
 
 /**
