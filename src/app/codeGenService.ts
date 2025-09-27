@@ -10,6 +10,8 @@ import { getApiKey } from './config.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ensureDirectory, createSafeFilename } from './utils.js';
+import { createProgressBar, buildDetailedProgressContent } from './utils/progress.js';
+import { validateProgress, validateStepProgress } from './utils/validation.js';
 
 export enum CodeGenType {
   HTML_SINGLE = 'html-single',
@@ -170,7 +172,7 @@ export async function generateCodeWithProgress(
           tokensProcessed: 0
         }
       });
-      
+
       // Simulate analysis time
       await new Promise(resolve => setTimeout(resolve, 300));
       type = detectCodeGenType(prompt);
@@ -189,7 +191,7 @@ export async function generateCodeWithProgress(
 
     const model = createModel(modelName);
     const systemPrompt = getSystemPrompt(type);
-    
+
     // Stream the AI response
     const stream = await model.stream([
       new SystemMessage(systemPrompt),
@@ -202,9 +204,9 @@ export async function generateCodeWithProgress(
     let estimatedTokens = 0;
     let currentStepIndex = 0;
     let detectedCodeSections: string[] = [];
-    
+
     const steps = GENERATION_STEPS[type as keyof typeof GENERATION_STEPS] || GENERATION_STEPS[CodeGenType.HTML_SINGLE];
-    
+
     onProgress?.({
       stage: 'generating',
       message: 'AI is generating code...',
@@ -229,10 +231,10 @@ export async function generateCodeWithProgress(
         fullResponse += content;
         chunkCount++;
         estimatedTokens += content.length / 4; // Rough token estimation
-        
+
         // Detect code sections being generated
         detectCodeSections(content, detectedCodeSections);
-        
+
         // Update progress less frequently for better UX
         const now = Date.now();
         if (now - lastUpdateTime > 500 || chunkCount % 5 === 0) {
@@ -241,15 +243,15 @@ export async function generateCodeWithProgress(
           const estimatedTotal = (elapsed / estimatedProgress) * 100;
           const remaining = Math.max(0, estimatedTotal - elapsed);
           const estimatedTime = remaining > 0 ? `${Math.round(remaining)}s remaining` : 'Almost done...';
-          
+
           // Estimate current step based on progress
-          const stepProgress = Math.min(Math.floor((estimatedProgress - 30) / (40 / steps.length)), steps.length - 1);
+          const stepProgress = Math.max(0, Math.min(Math.floor((estimatedProgress - 30) / (40 / steps.length)), steps.length - 1));
           currentStepIndex = Math.max(0, Math.min(stepProgress, steps.length - 1));
-          
-          onProgress?.({ 
-            stage: 'generating', 
-            message: `AI is generating code... (${chunkCount} chunks)`, 
-            progress: Math.round(estimatedProgress),
+
+          onProgress?.({
+            stage: 'generating',
+            message: `AI is generating code... (${chunkCount} chunks)`,
+            progress: Math.max(0, Math.round(estimatedProgress)),
             details: {
               modelName,
               projectType: projectTypeNames[type],
@@ -288,7 +290,7 @@ export async function generateCodeWithProgress(
 
     // Save the generated code
     const result = await saveGeneratedCode(fullResponse, type, prompt);
-    
+
     const totalTime = (Date.now() - startTime) / 1000;
     onProgress?.({
       stage: 'completed',
@@ -309,7 +311,7 @@ export async function generateCodeWithProgress(
         codeSections: detectedCodeSections
       }
     });
-    
+
     return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

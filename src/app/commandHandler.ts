@@ -193,17 +193,17 @@ export class CommandHandler {
       const result = await generateCodeWithProgress(args, type, modelName, (progress: CodeGenProgress) => {
         const progressEmoji = this.getProgressEmoji(progress.stage);
         const progressBar = this.getProgressBar(progress.progress || 0);
-        
+
         // Build detailed content
         const content = this.buildDetailedProgressContent(progress, progressEmoji, progressBar);
-        
+
         const updatedMessage = {
           id: progressId,
           role: 'system' as const,
           content
         };
-        
-        setMessages(prev => 
+
+        setMessages(prev =>
           prev.map(msg => msg.id === progressId ? updatedMessage : msg)
         );
       });
@@ -253,9 +253,11 @@ export class CommandHandler {
   }
 
   private getProgressBar(progress: number): string {
-    const filled = Math.round(progress / 10);
+    // Use the new progress utility
+    const clampedProgress = Math.max(0, Math.min(100, progress));
+    const filled = Math.round(clampedProgress / 10);
     const empty = 10 - filled;
-    return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${progress}%`;
+    return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${clampedProgress}%`;
   }
 
   private getStageText(stage: CodeGenProgress['stage']): string {
@@ -284,14 +286,14 @@ export class CommandHandler {
     // Add step information if available
     if (progress.details) {
       const details = progress.details;
-      
+
       // Show current step information (main focus)
       if (details.currentStep && details.totalSteps) {
         const stepProgress = details.stepProgress || 0;
         const stepIndicator = this.getStepIndicator(stepProgress + 1, details.totalSteps);
         lines.push(`   ${stepIndicator} ${details.currentStep}`);
       }
-      
+
       // Show detected code sections (if any)
       if (details.codeSections && details.codeSections.length > 0) {
         const sections = details.codeSections.slice(-1); // Show only last section
@@ -299,7 +301,7 @@ export class CommandHandler {
           lines.push(`   🔧 ${sections[0]}`);
         }
       }
-      
+
       // Show generated files only at completion
       if (details.generatedFiles && details.generatedFiles.length > 0 && progress.stage === 'completed') {
         const files = details.generatedFiles.slice(0, 2);
@@ -313,10 +315,13 @@ export class CommandHandler {
   }
 
   private getStepIndicator(current: number, total: number): string {
-    const filled = Math.round((current / total) * 4);
+    // Ensure current and total are valid positive numbers
+    const safeCurrent = Math.max(0, current);
+    const safeTotal = Math.max(1, total); // Avoid division by zero
+    const filled = Math.max(0, Math.min(4, Math.round((safeCurrent / safeTotal) * 4)));
     const empty = 4 - filled;
     const bar = '█'.repeat(filled) + '░'.repeat(empty);
-    return `[${bar}] ${current}/${total}`;
+    return `[${bar}] ${safeCurrent}/${safeTotal}`;
   }
 
   private handleList(): boolean {
