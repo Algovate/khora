@@ -12,6 +12,7 @@ import path from 'node:path';
 import { ensureDirectory, createSafeFilename } from './utils.js';
 import { createProgressBar, buildDetailedProgressContent } from './utils/progress.js';
 import { validateProgress, validateStepProgress } from './utils/validation.js';
+import { extractTextFromContent, detectCodeSections } from './utils/codeDetection.js';
 
 export enum CodeGenType {
   HTML_SINGLE = 'html-single',
@@ -51,30 +52,6 @@ const GENERATION_STEPS = {
   ]
 };
 
-// Function to detect code sections being generated
-function detectCodeSections(content: string, detectedSections: string[]): void {
-  const sectionPatterns = [
-    { pattern: /<html[^>]*>/i, name: 'HTML Structure' },
-    { pattern: /<head[^>]*>/i, name: 'HTML Head' },
-    { pattern: /<style[^>]*>/i, name: 'CSS Styles' },
-    { pattern: /<script[^>]*>/i, name: 'JavaScript Code' },
-    { pattern: /<body[^>]*>/i, name: 'HTML Body' },
-    { pattern: /<div[^>]*class/i, name: 'Layout Elements' },
-    { pattern: /function\s+\w+/i, name: 'Functions' },
-    { pattern: /const\s+\w+\s*=/i, name: 'Variables' },
-    { pattern: /<template[^>]*>/i, name: 'Vue Template' },
-    { pattern: /export\s+default/i, name: 'Vue Component' },
-    { pattern: /package\.json/i, name: 'Package Config' },
-    { pattern: /\.css/i, name: 'CSS File' },
-    { pattern: /\.js/i, name: 'JavaScript File' }
-  ];
-
-  for (const { pattern, name } of sectionPatterns) {
-    if (pattern.test(content) && !detectedSections.includes(name)) {
-      detectedSections.push(name);
-    }
-  }
-}
 
 export interface CodeGenResult {
   type: CodeGenType;
@@ -402,17 +379,6 @@ function createCodeGenGraph(type: CodeGenType, modelName?: string) {
   return builder.compile();
 }
 
-function extractTextFromContent(content: unknown): string {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    try {
-      return content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('');
-    } catch {
-      return String(content);
-    }
-  }
-  return content == null ? '' : String(content);
-}
 
 async function saveGeneratedCode(
   content: string,

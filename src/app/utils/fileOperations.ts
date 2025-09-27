@@ -18,12 +18,12 @@ export function validateGeneratedFiles(
   type: CodeGenType
 ): FileValidationResult {
   const issues: string[] = [];
-  
+
   if (!fs.existsSync(outputPath)) {
     issues.push(`Output directory does not exist: ${outputPath}`);
     return { isValid: false, issues };
   }
-  
+
   for (const file of files) {
     const filePath = path.join(outputPath, file);
     if (!fs.existsSync(filePath)) {
@@ -35,7 +35,7 @@ export function validateGeneratedFiles(
       }
     }
   }
-  
+
   // Type-specific validations
   if (type === CodeGenType.HTML_SINGLE) {
     const indexPath = path.join(outputPath, 'index.html');
@@ -53,7 +53,7 @@ export function validateGeneratedFiles(
       }
     }
   }
-  
+
   return {
     isValid: issues.length === 0,
     issues
@@ -161,58 +161,9 @@ export function createProjectDirectory(prompt: string): { projectDir: string; pr
   const timestamp = Date.now();
   const projectName = createSafeFilename(prompt.slice(0, 30), 'project');
   const projectDir = path.join(process.cwd(), 'generated', `${projectName}_${timestamp}`);
-  
+
   ensureDirectory(projectDir);
-  
+
   return { projectDir, projectName };
 }
 
-/**
- * Lists all generated projects
- */
-export function listGeneratedProjects(): any[] {
-  const generatedDir = path.join(process.cwd(), 'generated');
-  if (!fs.existsSync(generatedDir)) {
-    return [];
-  }
-
-  const projects: any[] = [];
-  const entries = fs.readdirSync(generatedDir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      const projectPath = path.join(generatedDir, entry.name);
-      const stats = fs.statSync(projectPath);
-
-      // Try to determine project type
-      let type = CodeGenType.HTML_SINGLE;
-      const indexPath = path.join(projectPath, 'index.html');
-      const packageJsonPath = path.join(projectPath, 'package.json');
-
-      if (fs.existsSync(packageJsonPath)) {
-        type = CodeGenType.VUE_PROJECT;
-      } else if (fs.existsSync(indexPath)) {
-        const stylePath = path.join(projectPath, 'style.css');
-        const scriptPath = path.join(projectPath, 'script.js');
-        if (fs.existsSync(stylePath) || fs.existsSync(scriptPath)) {
-          type = CodeGenType.MULTI_FILE;
-        }
-      }
-
-      const files = fs.readdirSync(projectPath, { recursive: true })
-        .filter(f => typeof f === 'string')
-        .map(f => f as string);
-
-      projects.push({
-        id: entry.name,
-        name: entry.name,
-        type,
-        createdAt: stats.birthtime,
-        outputPath: projectPath,
-        files
-      });
-    }
-  }
-
-  return projects.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-}

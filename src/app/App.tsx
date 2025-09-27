@@ -86,10 +86,10 @@ export default function App(): React.ReactElement {
         setInput,
         modelName
       };
-      
+
       const handler = new CommandHandler(context);
       const handled = await handler.handleCommand(trimmed);
-      
+
       if (handled) {
         // Handle special cases
         if (trimmed.startsWith('/model') && !trimmed.includes(' ')) {
@@ -153,7 +153,7 @@ export default function App(): React.ReactElement {
             <Text>{msg.content}</Text>
           </Box>
         ))}
-        
+
         {isThinking && (
           <Box flexDirection="row" alignItems="center">
             <Spinner type="dots" />
