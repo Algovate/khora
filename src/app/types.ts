@@ -12,6 +12,15 @@ export type SessionMessage = {
 
 export type AppConfig = {
   apiKey?: string;
+  mcpServers?: MCPServerConfig[];
+};
+
+export type MCPServerConfig = {
+  name: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  enabled: boolean;
 };
 
 export interface CommandContext {

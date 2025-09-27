@@ -1,14 +1,17 @@
 import { generateCode, generateCodeWithProgress, CodeGenProgress, listGeneratedProjects, cleanGeneratedProjects } from './generator.js';
 import { CodeGenType } from './constants.js';
-import { saveSessionToFile } from './config.js';
+import { saveSessionToFile, getMCPServers, addMCPServer, removeMCPServer, setMCPServers } from './config.js';
 import { CommandContext, CommandResult } from './types.js';
+import { MCPManager } from './mcp.js';
 
 
 export class CommandHandler {
   private context: CommandContext;
+  private mcpManager: MCPManager;
 
-  constructor(context: CommandContext) {
+  constructor(context: CommandContext, mcpManager?: MCPManager) {
     this.context = context;
+    this.mcpManager = mcpManager || new MCPManager();
   }
 
   // Utility function to generate unique IDs
@@ -67,6 +70,30 @@ export class CommandHandler {
       case 'rm':
         return this.handleClean();
 
+      case 'mcp':
+        return await this.handleMCP(args);
+
+      case 'mcp-connect':
+        return await this.handleMCPConnect(args);
+
+      case 'mcp-disconnect':
+        return await this.handleMCPDisconnect(args);
+
+      case 'mcp-list':
+        return this.handleMCPList();
+
+      case 'mcp-tools':
+        return this.handleMCPTools();
+
+      case 'mcp-call':
+        return await this.handleMCPCall(args);
+
+      case 'mcp-add':
+        return this.handleMCPAdd(args);
+
+      case 'mcp-remove':
+        return this.handleMCPRemove(args);
+
       default:
         return false;
     }
@@ -97,12 +124,24 @@ export class CommandHandler {
         '/list | /ls           - List all generated projects\n' +
         '/clean | /rm          - Clean up all generated files\n' +
         '\n' +
+        '## 🔌 MCP (Model Context Protocol) Commands\n' +
+        '\n' +
+        '/mcp                  - Show MCP help\n' +
+        '/mcp-list             - List configured MCP servers\n' +
+        '/mcp-connect <name>   - Connect to MCP server\n' +
+        '/mcp-disconnect <name> - Disconnect from MCP server\n' +
+        '/mcp-tools            - List available MCP tools\n' +
+        '/mcp-call <tool> [args] - Call MCP tool\n' +
+        '/mcp-add <config>     - Add MCP server configuration\n' +
+        '/mcp-remove <name>    - Remove MCP server configuration\n' +
+        '\n' +
         '## 📝 Examples\n' +
         '\n' +
         '/gen-html Create a portfolio website with dark theme\n' +
         '/gen-web Build a landing page with animations\n' +
         '/gen-vue Create a todo app with Vue 3 and routing\n' +
-        '/gen-auto Make a blog with comments system'
+        '/gen-auto Make a blog with comments system\n' +
+        '/mcp-call filesystem_read_file {"path": "/path/to/file"}'
     }]);
     return true;
   }
@@ -363,6 +402,308 @@ export class CommandHandler {
         id: this.generateUniqueId('sys'),
         role: 'system',
         content: `❌ Clean error: ${message}`
+      }]);
+    }
+    return true;
+  }
+
+  // MCP Command Handlers
+
+  private async handleMCP(args: string): Promise<boolean> {
+    const { setMessages } = this.context;
+    setMessages(prev => [...prev, {
+      id: this.generateUniqueId('sys'),
+      role: 'system',
+      content: '🔌 MCP (Model Context Protocol) Commands:\n\n' +
+        '/mcp-list             - List configured MCP servers\n' +
+        '/mcp-connect <name>   - Connect to MCP server\n' +
+        '/mcp-disconnect <name> - Disconnect from MCP server\n' +
+        '/mcp-tools            - List available MCP tools\n' +
+        '/mcp-call <tool> [args] - Call MCP tool\n' +
+        '/mcp-add <config>     - Add MCP server configuration\n' +
+        '/mcp-remove <name>    - Remove MCP server configuration\n\n' +
+        'Examples:\n' +
+        '/mcp-call filesystem_read_file {"path": "/path/to/file"}\n' +
+        '/mcp-add {"name": "filesystem", "command": "npx", "args": ["@modelcontextprotocol/server-filesystem", "/tmp"], "enabled": true}'
+    }]);
+    return true;
+  }
+
+  private async handleMCPConnect(args: string): Promise<boolean> {
+    const { setMessages } = this.context;
+    const serverName = args.trim();
+    
+    if (!serverName) {
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: 'Usage: /mcp-connect <server-name>'
+      }]);
+      return true;
+    }
+
+    try {
+      const success = await this.mcpManager.connectServer(serverName);
+      if (success) {
+        setMessages(prev => [...prev, {
+          id: this.generateUniqueId('sys'),
+          role: 'system',
+          content: `✅ Connected to MCP server: ${serverName}`
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: this.generateUniqueId('sys'),
+          role: 'system',
+          content: `❌ Failed to connect to MCP server: ${serverName}`
+        }]);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `❌ Connection error: ${message}`
+      }]);
+    }
+    return true;
+  }
+
+  private async handleMCPDisconnect(args: string): Promise<boolean> {
+    const { setMessages } = this.context;
+    const serverName = args.trim();
+    
+    if (!serverName) {
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: 'Usage: /mcp-disconnect <server-name>'
+      }]);
+      return true;
+    }
+
+    try {
+      await this.mcpManager.disconnectServer(serverName);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `🔌 Disconnected from MCP server: ${serverName}`
+      }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `❌ Disconnection error: ${message}`
+      }]);
+    }
+    return true;
+  }
+
+  private handleMCPList(): boolean {
+    const { setMessages } = this.context;
+    try {
+      const servers = getMCPServers();
+      const status = this.mcpManager.getServerStatus();
+      
+      if (servers.length === 0) {
+        setMessages(prev => [...prev, {
+          id: this.generateUniqueId('sys'),
+          role: 'system',
+          content: '📋 No MCP servers configured. Use /mcp-add to add one.'
+        }]);
+      } else {
+        const list = servers.map(server => {
+          const serverStatus = status[server.name] || { connected: false, tools: 0 };
+          const statusIcon = serverStatus.connected ? '🟢' : '🔴';
+          const toolsInfo = serverStatus.tools > 0 ? ` (${serverStatus.tools} tools)` : '';
+          return `${statusIcon} ${server.name}${toolsInfo} - ${server.command} ${server.args?.join(' ') || ''}`;
+        }).join('\n');
+        
+        setMessages(prev => [...prev, {
+          id: this.generateUniqueId('sys'),
+          role: 'system',
+          content: `📋 MCP Servers:\n${list}`
+        }]);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `❌ List error: ${message}`
+      }]);
+    }
+    return true;
+  }
+
+  private handleMCPTools(): boolean {
+    const { setMessages } = this.context;
+    try {
+      const tools = this.mcpManager.getTools();
+      
+      if (tools.length === 0) {
+        setMessages(prev => [...prev, {
+          id: this.generateUniqueId('sys'),
+          role: 'system',
+          content: '🔧 No MCP tools available. Connect to MCP servers first.'
+        }]);
+      } else {
+        const list = tools.map(tool => 
+          `🔧 ${tool.name} (${tool.server})\n   ${tool.description}`
+        ).join('\n\n');
+        
+        setMessages(prev => [...prev, {
+          id: this.generateUniqueId('sys'),
+          role: 'system',
+          content: `🔧 Available MCP Tools:\n\n${list}`
+        }]);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `❌ Tools error: ${message}`
+      }]);
+    }
+    return true;
+  }
+
+  private async handleMCPCall(args: string): Promise<boolean> {
+    const { setMessages } = this.context;
+    const parts = args.trim().split(/\s+/);
+    
+    if (parts.length < 1) {
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: 'Usage: /mcp-call <tool-name> [arguments-json]'
+      }]);
+      return true;
+    }
+
+    const toolName = parts[0]!;
+    let arguments_: any = {};
+    
+    if (parts.length > 1) {
+      try {
+        const argsJson = parts.slice(1).join(' ');
+        arguments_ = JSON.parse(argsJson);
+      } catch (error) {
+        setMessages(prev => [...prev, {
+          id: this.generateUniqueId('sys'),
+          role: 'system',
+          content: `❌ Invalid JSON arguments: ${parts.slice(1).join(' ')}`
+        }]);
+        return true;
+      }
+    }
+
+    try {
+      const result = await this.mcpManager.callTool(toolName, arguments_);
+      
+      if (result.success) {
+        const content = typeof result.content === 'string' 
+          ? result.content 
+          : JSON.stringify(result.content, null, 2);
+        
+        setMessages(prev => [...prev, {
+          id: this.generateUniqueId('sys'),
+          role: 'system',
+          content: `✅ Tool '${toolName}' result:\n${content}`
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: this.generateUniqueId('sys'),
+          role: 'system',
+          content: `❌ Tool '${toolName}' error: ${result.error}`
+        }]);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `❌ Tool call error: ${message}`
+      }]);
+    }
+    return true;
+  }
+
+  private handleMCPAdd(args: string): boolean {
+    const { setMessages } = this.context;
+    
+    if (!args.trim()) {
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: 'Usage: /mcp-add <config-json>\n\nExample:\n/mcp-add {"name": "filesystem", "command": "npx", "args": ["@modelcontextprotocol/server-filesystem", "/tmp"], "enabled": true}'
+      }]);
+      return true;
+    }
+
+    try {
+      const config = JSON.parse(args);
+      
+      // Validate required fields
+      if (!config.name || !config.command) {
+        setMessages(prev => [...prev, {
+          id: this.generateUniqueId('sys'),
+          role: 'system',
+          content: '❌ Config must include "name" and "command" fields'
+        }]);
+        return true;
+      }
+
+      // Set defaults
+      config.enabled = config.enabled !== false;
+      config.args = config.args || [];
+      config.env = config.env || {};
+
+      addMCPServer(config);
+      
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `✅ Added MCP server: ${config.name}`
+      }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `❌ Invalid config JSON: ${message}`
+      }]);
+    }
+    return true;
+  }
+
+  private handleMCPRemove(args: string): boolean {
+    const { setMessages } = this.context;
+    const serverName = args.trim();
+    
+    if (!serverName) {
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: 'Usage: /mcp-remove <server-name>'
+      }]);
+      return true;
+    }
+
+    try {
+      removeMCPServer(serverName);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `🗑️ Removed MCP server: ${serverName}`
+      }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `❌ Remove error: ${message}`
       }]);
     }
     return true;

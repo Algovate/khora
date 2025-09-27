@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { AppConfig, SessionMessage } from './types.js';
+import { AppConfig, SessionMessage, MCPServerConfig } from './types.js';
 import { CONFIG_PATH, SESSIONS_DIR } from './constants.js';
 import { createSafeFilename, ensureDirectory } from './utils.js';
 
@@ -48,5 +48,33 @@ export function saveSessionToFile(messages: SessionMessage[], name?: string): st
   const payload = { messages };
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
   return filePath;
+}
+
+export function getMCPServers(): MCPServerConfig[] {
+  const cfg = readConfig();
+  return cfg.mcpServers || [];
+}
+
+export function setMCPServers(servers: MCPServerConfig[]): void {
+  const cfg = readConfig();
+  cfg.mcpServers = servers;
+  writeConfig(cfg);
+}
+
+export function addMCPServer(server: MCPServerConfig): void {
+  const servers = getMCPServers();
+  const existingIndex = servers.findIndex(s => s.name === server.name);
+  if (existingIndex >= 0) {
+    servers[existingIndex] = server;
+  } else {
+    servers.push(server);
+  }
+  setMCPServers(servers);
+}
+
+export function removeMCPServer(name: string): void {
+  const servers = getMCPServers();
+  const filtered = servers.filter(s => s.name !== name);
+  setMCPServers(filtered);
 }
 

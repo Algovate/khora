@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text, useApp, useInput, useStdin } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
-import { getApiKey } from './config.js';
+import { getApiKey, getMCPServers } from './config.js';
 import { invokeChatModel, toLangChainMessages, extractTextFromContent } from './ai.js';
 import { Message, CommandContext, CommandResult } from './types.js';
 import { AVAILABLE_CHAT_MODELS, ChatModel } from './constants.js';
 import Logo from './Logo.js';
 import { WELCOME_TEXT } from './prompts.js';
 import { CommandHandler } from './commands.js';
+import { MCPManager } from './mcp.js';
 
 // Utility function to generate unique IDs
 function generateUniqueId(prefix: string): string {
@@ -26,6 +27,33 @@ export default function App(): React.ReactElement {
   const [modelName, setModelName] = useState<ChatModel>(AVAILABLE_CHAT_MODELS[0]);
   const [isPickingModel, setIsPickingModel] = useState(false);
   const [modelIndex, setModelIndex] = useState(0);
+  const [mcpManager] = useState(() => {
+    const manager = new MCPManager();
+    // Initialize MCP servers from config
+    const servers = getMCPServers();
+    servers.forEach(server => {
+      manager.addServer(server);
+    });
+    return manager;
+  });
+
+  // Initialize MCP connections on startup
+  useEffect(() => {
+    const initializeMCP = async () => {
+      try {
+        await mcpManager.connectAllServers();
+      } catch (error) {
+        console.error('Failed to initialize MCP servers:', error);
+      }
+    };
+
+    initializeMCP();
+
+    // Cleanup on unmount
+    return () => {
+      mcpManager.disconnectAllServers().catch(console.error);
+    };
+  }, [mcpManager]);
 
   // Check if raw mode is supported, if not show error
   if (!isRawModeSupported) {
@@ -87,7 +115,7 @@ export default function App(): React.ReactElement {
         modelName
       };
 
-      const handler = new CommandHandler(context);
+      const handler = new CommandHandler(context, mcpManager);
       const handled = await handler.handleCommand(trimmed);
 
       if (handled) {
