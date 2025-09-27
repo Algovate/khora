@@ -1,10 +1,9 @@
 import { StateGraph, MessagesAnnotation, END } from '@langchain/langgraph';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
-import { HTML_SYSTEM_PROMPT } from './prompts.js';
 import { getApiKey } from './config.js';
 
-function createModel(modelName: string = 'gemini-1.5-flash'): ChatGoogleGenerativeAI {
+function createModel(modelName: string = 'gemini-2.5-flash'): ChatGoogleGenerativeAI {
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error('Missing API key. Set GOOGLE_API_KEY or run login.');
@@ -59,13 +58,4 @@ export function extractTextFromContent(content: unknown): string {
     }
   }
   return content == null ? '' : String(content);
-}
-
-export async function generateSingleHtmlPage(modelName: string, prompt: string): Promise<string> {
-  const graph = createChatGraph(modelName);
-  const sys = new SystemMessage(HTML_SYSTEM_PROMPT);
-  const res = await graph.invoke({ messages: [sys, new HumanMessage(prompt)] });
-  const last = (res as any)?.messages?.slice(-1)[0];
-  const html = extractTextFromContent(last?.content);
-  return html.trim();
 }

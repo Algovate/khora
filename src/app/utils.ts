@@ -18,27 +18,8 @@ export function ensureDirectory(dir: string): string {
 }
 
 /**
- * Extracts content between HTML tags
- */
-export function extractBetween(html: string, tag: 'style' | 'script'): { content: string; without: string } {
-  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
-  const m = html.match(re);
-  if (!m) return { content: '', without: html };
-  const content = m[1] ?? '';
-  const without = html.replace(re, '');
-  return { content, without };
-}
-
-/**
  * Sleeps for a specified number of milliseconds
  */
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Generates a random seed for image generation
- */
-export function generateRandomSeed(): number {
-  return Math.floor(Math.random() * 1000000);
 }

@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { Box, Text, useApp, useInput, useStdin } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
-import { getApiKey, getImageApiKey, saveSessionToFile, saveHtmlToFile, saveHtmlPackage, saveImageToFile } from './config.js';
-import { createChatGraph, toLangChainMessages, extractTextFromContent, generateSingleHtmlPage } from './graph.js';
-import { generateImage } from './imageService.js';
+import { getApiKey } from './config.js';
+import { createChatGraph, toLangChainMessages, extractTextFromContent } from './graph.js';
 import { Message } from './types.js';
 import { AVAILABLE_CHAT_MODELS, ChatModel } from './constants.js';
 import Logo from './Logo.js';
-import { WELCOME_TEXT, HELP_TEXT } from './prompts.js';
+import { WELCOME_TEXT } from './prompts.js';
+import { CommandHandler, CommandContext } from './commandHandler.js';
 
 export default function App(): React.ReactElement {
   const { exit } = useApp();
@@ -20,41 +20,21 @@ export default function App(): React.ReactElement {
   const [isThinking, setIsThinking] = useState(false);
   const [modelName, setModelName] = useState<ChatModel>(AVAILABLE_CHAT_MODELS[0]);
   const [isPickingModel, setIsPickingModel] = useState(false);
-  const [modelIndex, setModelIndex] = useState<number>(0);
+  const [modelIndex, setModelIndex] = useState(0);
 
-  if (!isRawModeSupported) {
-    return (
-      <Box flexDirection="column">
-        <Logo />
-        <Text color="magenta">System: Welcome to khora ⚡</Text>
-        <Text color="yellow">Interactive input is unavailable in this environment.</Text>
-        <Text>
-          Set env var GOOGLE_API_KEY (or KHORA_API_KEY) and run in a TTY to log in.
-        </Text>
-      </Box>
-    );
-  }
-
-  useInput((inputKey, key) => {
+  useInput((input, key) => {
     if (isPickingModel) {
-      if (key.escape) {
-        setIsPickingModel(false);
-        return;
-      }
       if (key.upArrow) {
-        setModelIndex(prev => (prev - 1 + AVAILABLE_CHAT_MODELS.length) % AVAILABLE_CHAT_MODELS.length);
-        return;
-      }
-      if (key.downArrow) {
-        setModelIndex(prev => (prev + 1) % AVAILABLE_CHAT_MODELS.length);
-        return;
-      }
-      if (key.return) {
-        const next = AVAILABLE_CHAT_MODELS[modelIndex] ?? modelName;
-        setModelName(next);
-        setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Model set to: ${next}` }]);
+        setModelIndex(prev => Math.max(0, prev - 1));
+      } else if (key.downArrow) {
+        setModelIndex(prev => Math.min(AVAILABLE_CHAT_MODELS.length - 1, prev + 1));
+      } else if (key.return) {
+        setModelName(AVAILABLE_CHAT_MODELS[modelIndex] || AVAILABLE_CHAT_MODELS[0]);
         setIsPickingModel(false);
-        return;
+        setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Model set to: ${AVAILABLE_CHAT_MODELS[modelIndex]}` }]);
+      } else if (key.escape) {
+        setIsPickingModel(false);
+        setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: 'Model selection cancelled.' }]);
       }
       return;
     }
@@ -64,185 +44,106 @@ export default function App(): React.ReactElement {
     }
   });
 
-  async function handleSubmit(value: string) {
+  const handleSubmit = async (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
 
-    // Slash command handling: /q, /quit, /exit, /clear, /help, /model, /reset, /save, /html, /image
+    setMessages(prev => [...prev, { id: `user-${Date.now()}`, role: 'user', content: trimmed }]);
+    setInput('');
+
+    // Handle slash commands
     if (trimmed.startsWith('/')) {
-      const cmd = trimmed.slice(1).toLowerCase();
-      if (cmd === 'q' || cmd === 'quit' || cmd === 'exit') {
-        exit();
-        return;
-      }
-      if (cmd === 'clear' || cmd === 'cls') {
-        setMessages([{ id: `sys-${Date.now()}`, role: 'system', content: 'History cleared. Type `/q` to quit.' }]);
-        setInput('');
-        return;
-      }
-      if (cmd === 'help' || cmd === 'h' || cmd === '?') {
-        setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: HELP_TEXT }]);
-        setInput('');
-        return;
-      }
-      if (cmd === 'model' || cmd.startsWith('model')) {
-        const parts = trimmed.split(/\s+/);
-        if (parts.length < 2) {
-          // Open interactive picker
+      const context: CommandContext = {
+        messages,
+        setMessages,
+        setIsThinking,
+        setInput,
+        modelName
+      };
+      
+      const handler = new CommandHandler(context);
+      const handled = await handler.handleCommand(trimmed);
+      
+      if (handled) {
+        // Handle special cases
+        if (trimmed.startsWith('/model') && !trimmed.includes(' ')) {
           const currentIdx = Math.max(0, AVAILABLE_CHAT_MODELS.indexOf(modelName));
           setModelIndex(currentIdx);
           setIsPickingModel(true);
           setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: 'Select a model with ↑/↓ and press Enter. Esc to cancel.' }]);
-        } else {
-          const next = parts[1] as ChatModel ?? modelName;
-          setModelName(next);
-          setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Model set to: ${next}` }]);
+        } else if (trimmed.startsWith('/q') || trimmed.startsWith('/quit') || trimmed.startsWith('/exit')) {
+          exit();
         }
-        setInput('');
         return;
       }
-      if (cmd === 'reset') {
-        setMessages([{ id: `sys-${Date.now()}`, role: 'system', content: 'Context reset. Type `/help` for commands.' }]);
-        setInput('');
-        return;
-      }
-      if (cmd.startsWith('save')) {
-        const parts = trimmed.split(/\s+/);
-        const name = parts[1];
-        const file = saveSessionToFile(messages, name);
-        setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Saved to: ${file}` }]);
-        setInput('');
-        return;
-      }
-      if (cmd.startsWith('html')) {
-        const query = trimmed.replace(/^\/(html|htmlsplit)\s*/, '');
-        if (!query) {
-          setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: 'Usage: /html <prompt> or /htmlsplit <prompt>' }]);
-          setInput('');
-          return;
-        }
-        try {
-          setIsThinking(true);
-          const html = await generateSingleHtmlPage(modelName, query);
-          if (trimmed.startsWith('/htmlsplit')) {
-            const pkg = saveHtmlPackage(html);
-            setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `HTML package saved: ${pkg.indexPath}` }]);
-          } else {
-            const file = saveHtmlToFile(html);
-            setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `HTML saved to: ${file}` }]);
-          }
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `HTML generation error: ${message}` }]);
-        } finally {
-          setIsThinking(false);
-        }
-        setInput('');
-        return;
-      }
-      if (cmd.startsWith('image')) {
-        const query = trimmed.replace(/^\/image\s*/, '');
-        if (!query) {
-          setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: 'Usage: /image <prompt>' }]);
-          setInput('');
-          return;
-        }
-        try {
-          setIsThinking(true);
-          const imageBuffer = await generateImage({ prompt: query });
-          const filePath = saveImageToFile(imageBuffer);
-          setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Image saved to: ${filePath}` }]);
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Image generation error: ${message}` }]);
-        } finally {
-          setIsThinking(false);
-        }
-        setInput('');
-        return;
-      }
-      // Unknown command feedback
-      setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Unknown command: ${trimmed}` }]);
-      setInput('');
-      return;
     }
 
-    const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', content: value };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsThinking(true);
-
+    // Regular chat with AI
     try {
+      setIsThinking(true);
       const graph = createChatGraph(modelName);
-      const chatMsgs = toLangChainMessages([...messages, userMessage]);
-      const out = await (graph as any).invoke({ messages: chatMsgs as any });
-      const last = (out as any)?.messages?.slice(-1)[0];
+      const res = await graph.invoke({
+        messages: toLangChainMessages(messages.concat({ id: `user-${Date.now()}`, role: 'user', content: trimmed }))
+      });
+      const last = (res as any)?.messages?.slice(-1)[0];
       const text = extractTextFromContent(last?.content);
-      const assistantMessage: Message = { id: `a-${Date.now()}`, role: 'assistant', content: text };
-      setMessages(prev => [...prev, assistantMessage]);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      setMessages(prev => [
-        ...prev,
-        { id: `e-${Date.now()}` , role: 'system', content: `Gemini error: ${message}` }
-      ]);
+      setMessages(prev => [...prev, { id: `ai-${Date.now()}`, role: 'assistant', content: text }]);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setMessages(prev => [...prev, { id: `sys-${Date.now()}`, role: 'system', content: `Error: ${message}` }]);
     } finally {
       setIsThinking(false);
     }
-  }
+  };
 
   const apiKey = getApiKey();
-  const imageApiKey = getImageApiKey();
 
   if (!apiKey) {
     return (
       <Box flexDirection="column">
         <Logo />
-        <Text color="magenta">System: Welcome to khora ⚡</Text>
-        <Text color="yellow">No API key found.</Text>
-        <Text>Set env var GOOGLE_API_KEY or KHORA_API_KEY and restart.</Text>
-        <Text>For image generation, also set KHORA_IMAGE_API_KEY or DASHSCOPE_API_KEY.</Text>
+        <Text color="red">
+          Missing API key. Set GOOGLE_API_KEY or KHORA_API_KEY in your environment.
+        </Text>
+        <Text>
+          You can also run <Text color="cyan">khora login</Text> to set it interactively.
+        </Text>
       </Box>
     );
   }
 
   return (
-    <Box flexDirection="column">
-      <Logo />
-      <Box flexDirection="column" marginBottom={1}>
-        {isPickingModel && (
-          <Box flexDirection="column" borderStyle="round" borderColor="cyan" padding={1} marginBottom={1}>
-            <Text color="magenta">Model Picker</Text>
-            {AVAILABLE_CHAT_MODELS.map((m, idx) => {
-              const label = `${idx === modelIndex ? '› ' : '  '}${m}${m === modelName ? '  (current)' : ''}`;
-              return idx === modelIndex ? (
-                <Text key={m} color="cyan">{label}</Text>
-              ) : (
-                <Text key={m}>{label}</Text>
-              );
-            })}
-            <Text color="gray">Use ↑/↓ and Enter. Esc to cancel.</Text>
-          </Box>
-        )}
-        {messages.map(m => (
-          <Box key={m.id}>
-            <Text color={m.role === 'user' ? 'cyan' : m.role === 'assistant' ? 'green' : 'magenta'}>
-              {m.role === 'user' ? 'You' : m.role === 'assistant' ? 'Khora' : 'System'}:
+    <Box flexDirection="column" height="100%" width="100%">
+      <Box flexDirection="column" flexGrow={1} paddingX={1}>
+        {messages.map(msg => (
+          <Box key={msg.id} flexDirection="column" marginBottom={1}>
+            <Text color={msg.role === 'user' ? 'cyan' : msg.role === 'system' ? 'yellow' : 'green'}>
+              {msg.role === 'user' ? 'You' : msg.role === 'system' ? 'System' : 'AI'}:
             </Text>
-            <Text> {m.content}</Text>
+            <Text>{msg.content}</Text>
           </Box>
         ))}
+        
         {isThinking && (
-          <Box>
-            <Text color="yellow">
-              <Spinner type="dots" /> Thinking...
-            </Text>
+          <Box flexDirection="row" alignItems="center">
+            <Spinner type="dots" />
+            <Text>Thinking...</Text>
+          </Box>
+        )}
+
+        {isPickingModel && (
+          <Box flexDirection="column" marginTop={1}>
+            <Text color="yellow">Available models:</Text>
+            {AVAILABLE_CHAT_MODELS.map((model, i) => (
+              <Text key={model} color={i === modelIndex ? 'green' : 'white'}>
+                {i === modelIndex ? '→ ' : '  '}{model}
+              </Text>
+            ))}
           </Box>
         )}
       </Box>
 
-      <Box>
-        <Text color="gray">› </Text>
+      <Box borderStyle="round" borderColor="gray" padding={1}>
         <TextInput
           value={input}
           onChange={setInput}
@@ -253,5 +154,3 @@ export default function App(): React.ReactElement {
     </Box>
   );
 }
-
-
