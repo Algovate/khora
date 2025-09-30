@@ -91,7 +91,7 @@ API Key: sk-or-v1...
 
 - Read [Configuration Guide](CONFIGURATION.md) for advanced setup
 - Try different models with `/set-model`
-- Explore MCP integration in [MCP_INTEGRATION.md](../MCP_INTEGRATION.md)
+- Explore MCP integration in [MCP_INTEGRATION.md](MCP_INTEGRATION.md)
 - Check [ARCHITECTURE.md](ARCHITECTURE.md) to understand the codebase
 
 ## Need Help?

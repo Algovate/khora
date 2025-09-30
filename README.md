@@ -47,7 +47,14 @@ Configure your model:
 /get-config
 ```
 
-See [Configuration Guide](docs/CONFIGURATION.md) for detailed setup instructions.
+## Documentation
+
+- 📖 [Quick Start](docs/QUICKSTART.md) - Get started in 5 minutes
+- ⚙️ [Configuration](docs/CONFIGURATION.md) - Setup and configuration
+- 🤖 [Models](docs/MODELS.md) - AI model reference
+- 🔌 [MCP Integration](docs/MCP_INTEGRATION.md) - Tool integration
+- 🏗️ [Architecture](docs/ARCHITECTURE.md) - Technical details
+- 🛠️ [API Reference](docs/API.md) - Programming interface
 
 ## Usage
 
