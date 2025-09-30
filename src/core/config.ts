@@ -3,37 +3,72 @@ import path from 'node:path';
 import { AppConfig, SessionMessage, MCPServerConfig } from '../types/types.js';
 import { CONFIG_PATH, SESSIONS_DIR } from './constants.js';
 import { createSafeFilename, ensureDirectory } from '../utils/utils.js';
+import { OPENROUTER_CONFIG, getOpenRouterApiKey } from './openrouter.js';
+
+// Cached config to avoid repeated file reads
+let cachedConfig: AppConfig | null = null;
 
 export function getConfigPath(): string {
   return CONFIG_PATH;
 }
 
 export function readConfig(): AppConfig {
+  if (cachedConfig !== null) {
+    return cachedConfig;
+  }
+
   try {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
-    return JSON.parse(raw) as AppConfig;
+    cachedConfig = JSON.parse(raw) as AppConfig;
+    return cachedConfig;
   } catch {
-    return {};
+    cachedConfig = {};
+    return cachedConfig;
   }
 }
 
 export function writeConfig(config: AppConfig): void {
   ensureDirectory(path.dirname(CONFIG_PATH));
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+  cachedConfig = config; // Update cache
+}
+
+/**
+ * Clear config cache - useful for testing or when file is modified externally
+ */
+export function clearConfigCache(): void {
+  cachedConfig = null;
+}
+
+/**
+ * Update config with partial updates
+ */
+function updateConfig(updates: Partial<AppConfig>): void {
+  const cfg = readConfig();
+  writeConfig({ ...cfg, ...updates });
 }
 
 export function getApiKey(): string | undefined {
-  // Prefer env vars commonly used for Gemini
-  const fromEnv = process.env.KHORA_API_KEY || process.env.GOOGLE_API_KEY;
-  if (fromEnv && fromEnv.trim().length > 0) return fromEnv.trim();
+  // First check environment variables
+  const fromEnv = getOpenRouterApiKey();
+  if (fromEnv) return fromEnv;
+
+  // Then check config file
   const cfg = readConfig();
   return cfg.apiKey?.trim();
 }
 
 export function setApiKey(apiKey: string): void {
+  updateConfig({ apiKey: apiKey.trim() });
+}
+
+export function getModel(): string {
   const cfg = readConfig();
-  cfg.apiKey = apiKey.trim();
-  writeConfig(cfg);
+  return cfg.model || OPENROUTER_CONFIG.defaultModel;
+}
+
+export function setModel(model: string): void {
+  updateConfig({ model });
 }
 
 
@@ -56,25 +91,24 @@ export function getMCPServers(): MCPServerConfig[] {
 }
 
 export function setMCPServers(servers: MCPServerConfig[]): void {
-  const cfg = readConfig();
-  cfg.mcpServers = servers;
-  writeConfig(cfg);
+  updateConfig({ mcpServers: servers });
 }
 
 export function addMCPServer(server: MCPServerConfig): void {
   const servers = getMCPServers();
   const existingIndex = servers.findIndex(s => s.name === server.name);
+
   if (existingIndex >= 0) {
     servers[existingIndex] = server;
   } else {
     servers.push(server);
   }
+
   setMCPServers(servers);
 }
 
 export function removeMCPServer(name: string): void {
   const servers = getMCPServers();
-  const filtered = servers.filter(s => s.name !== name);
-  setMCPServers(filtered);
+  setMCPServers(servers.filter(s => s.name !== name));
 }
 

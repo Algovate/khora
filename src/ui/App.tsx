@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useApp, useInput, useStdin } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
-import { getApiKey, getMCPServers } from '../core/config.js';
-import { toLangChainMessages, extractTextFromContent } from '../ai/ai.js';
+import { getApiKey, getMCPServers, getModel, clearConfigCache } from '../core/config.js';
 import { chatWithMCPSimple } from '../ai/langgraph-mcp.js';
-import { Message, CommandContext, CommandResult } from '../types/types.js';
+import { Message, CommandContext } from '../types/types.js';
 import { AVAILABLE_CHAT_MODELS, ChatModel } from '../core/constants.js';
 import Logo from './Logo.js';
 import { WELCOME_TEXT } from '../core/prompts.js';
 import { CommandHandler } from '../core/commands.js';
 import { MCPManager } from '../mcp/mcp.js';
+
+// Clear config cache on app start to ensure fresh config is loaded
+clearConfigCache();
 
 // Utility function to generate unique IDs
 function generateUniqueId(prefix: string): string {
@@ -25,7 +27,7 @@ export default function App(): React.ReactElement {
   ]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
-  const [modelName, setModelName] = useState<ChatModel>(AVAILABLE_CHAT_MODELS[0]);
+  const [modelName, setModelName] = useState<ChatModel>(getModel());
   const [isPickingModel, setIsPickingModel] = useState(false);
   const [modelIndex, setModelIndex] = useState(0);
   const [mcpManager] = useState(() => {
@@ -76,15 +78,18 @@ export default function App(): React.ReactElement {
 
   useInput((input, key) => {
     if (isPickingModel) {
+      const availableModels = [...AVAILABLE_CHAT_MODELS];
+      
       if (key.upArrow) {
         setModelIndex(prev => Math.max(0, prev - 1));
       } else if (key.downArrow) {
-        setModelIndex(prev => Math.min(AVAILABLE_CHAT_MODELS.length - 1, prev + 1));
+        setModelIndex(prev => Math.min(availableModels.length - 1, prev + 1));
       } else if (key.return) {
-        setModelName(AVAILABLE_CHAT_MODELS[modelIndex] || AVAILABLE_CHAT_MODELS[0]);
+        const selectedModel = (availableModels[modelIndex] || availableModels[0]) as string;
+        setModelName(selectedModel);
         setIsPickingModel(false);
         const sysId = generateUniqueId('sys');
-        setMessages(prev => [...prev, { id: sysId, role: 'system', content: `Model set to: ${AVAILABLE_CHAT_MODELS[modelIndex]}` }]);
+        setMessages(prev => [...prev, { id: sysId, role: 'system', content: `Model set to: ${selectedModel}` }]);
       } else if (key.escape) {
         setIsPickingModel(false);
         const cancelId = generateUniqueId('sys');
@@ -122,11 +127,12 @@ export default function App(): React.ReactElement {
       if (handled) {
         // Handle special cases
         if (trimmed.startsWith('/model') && !trimmed.includes(' ')) {
-          const currentIdx = Math.max(0, AVAILABLE_CHAT_MODELS.indexOf(modelName));
+          const availableModels = [...AVAILABLE_CHAT_MODELS] as string[];
+          const currentIdx = Math.max(0, availableModels.indexOf(modelName as string));
           setModelIndex(currentIdx);
           setIsPickingModel(true);
           const selectId = generateUniqueId('sys');
-          setMessages(prev => [...prev, { id: selectId, role: 'system', content: 'Select a model with ↑/↓ and press Enter. Esc to cancel.' }]);
+          setMessages(prev => [...prev, { id: selectId, role: 'system', content: 'Select a model with ↑/↓ and press Enter. Esc to cancel. (Provider: OpenRouter)' }]);
         } else if (trimmed.startsWith('/q') || trimmed.startsWith('/quit') || trimmed.startsWith('/exit')) {
           exit();
         }
@@ -137,8 +143,6 @@ export default function App(): React.ReactElement {
     // Regular chat with AI using LangGraph
     try {
       setIsThinking(true);
-      const tempUserId = generateUniqueId('user');
-      const langChainMessages = toLangChainMessages(messages.concat({ id: tempUserId, role: 'user', content: trimmed }));
 
       // Use simplified LangGraph for MCP integration
       const res = await chatWithMCPSimple(trimmed, mcpManager, messages);
@@ -173,10 +177,10 @@ export default function App(): React.ReactElement {
       <Box flexDirection="column">
         <Logo />
         <Text color="red">
-          Missing API key. Set GOOGLE_API_KEY or KHORA_API_KEY in your environment.
+          Missing API key. Set KHORA_API_KEY or OPENROUTER_API_KEY in your environment.
         </Text>
         <Text>
-          You can also run <Text color="cyan">khora login</Text> to set it interactively.
+          Get your OpenRouter API key at: <Text color="cyan">https://openrouter.ai/</Text>
         </Text>
       </Box>
     );
@@ -203,7 +207,7 @@ export default function App(): React.ReactElement {
 
         {isPickingModel && (
           <Box flexDirection="column" marginTop={1}>
-            <Text color="yellow">Available models:</Text>
+            <Text color="yellow">Available models (OpenRouter):</Text>
             {AVAILABLE_CHAT_MODELS.map((model, i) => (
               <Text key={model} color={i === modelIndex ? 'green' : 'white'}>
                 {i === modelIndex ? '→ ' : '  '}{model}

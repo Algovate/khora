@@ -1,7 +1,7 @@
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import { MCPManager } from '../mcp/mcp.js';
-import { getApiKey } from '../core/config.js';
+import { createOpenRouterModel } from './modelFactory.js';
 
 // 类型定义
 export interface ChatResponse {
@@ -133,21 +133,11 @@ Important guidelines:
 
 // 主要的 LangGraph MCP 聊天类
 export class LangGraphMCPChat {
-  private model: ChatGoogleGenerativeAI;
+  private model: ChatOpenAI;
   private mcpManager: MCPManager;
 
-  constructor(mcpManager: MCPManager, modelName: string = 'gemini-2.5-flash') {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      throw new Error('Missing API key');
-    }
-
-    this.model = new ChatGoogleGenerativeAI({
-      model: modelName,
-      apiKey,
-      temperature: 0.7
-    });
-
+  constructor(mcpManager: MCPManager, modelName?: string) {
+    this.model = createOpenRouterModel(modelName ? { modelName } : {});
     this.mcpManager = mcpManager;
   }
 

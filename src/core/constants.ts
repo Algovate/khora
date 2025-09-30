@@ -9,11 +9,20 @@ export const GENERATED_DIR = path.join(process.cwd(), 'generated');
 
 // Available models
 export const AVAILABLE_CHAT_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-pro'
+  'x-ai/grok-4-fast:free',
+  'x-ai/grok-beta',
+  'anthropic/claude-3.5-sonnet',
+  'anthropic/claude-3-opus',
+  'anthropic/claude-3-sonnet',
+  'openai/gpt-4-turbo',
+  'openai/gpt-4',
+  'openai/gpt-3.5-turbo',
+  'google/gemini-pro',
+  'google/gemini-2.0-flash-exp',
+  'meta-llama/llama-3-70b-instruct',
 ] as const;
 
-export type ChatModel = typeof AVAILABLE_CHAT_MODELS[number];
+export type ChatModel = typeof AVAILABLE_CHAT_MODELS[number] | string;
 
 // Code generation types
 export enum CodeGenType {
@@ -80,7 +89,7 @@ export const FILE_SIZE_LIMITS = {
 
 // Error messages
 export const ERROR_MESSAGES = {
-  MISSING_API_KEY: 'Missing API key. Set GOOGLE_API_KEY or run login.',
+  MISSING_API_KEY: 'Missing API key. Set KHORA_API_KEY or OPENROUTER_API_KEY.',
   NO_HTML_BLOCK: 'No HTML code block found in response',
   NO_CODE_BLOCKS: 'No code blocks found in response',
   GENERATION_FAILED: 'Code generation failed',

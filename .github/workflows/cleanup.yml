@@ -1,0 +1,59 @@
+# This workflow keeps the build directory clean
+# Run manually or on schedule to clean up old artifacts
+
+name: Cleanup Build Artifacts
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Sundays at 00:00 UTC
+    - cron: '0 0 * * 0'
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Clean dist directory
+        run: |
+          rm -rf dist/
+          echo "✅ Cleaned dist directory"
+          
+      - name: Rebuild
+        run: |
+          npm run build
+          echo "✅ Rebuild complete"
+          
+      - name: Verify build
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "❌ Build failed - dist directory not created"
+            exit 1
+          fi
+          
+          file_count=$(find dist -type f | wc -l)
+          echo "✅ Build successful - $file_count files generated"
+          
+      - name: Check for unused files
+        run: |
+          # List any .map files that might be unnecessary in production
+          map_files=$(find dist -name "*.map" | wc -l)
+          echo "📊 Found $map_files source map files"
+          
+      - name: Summary
+        run: |
+          echo "## Cleanup Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Build directory cleaned" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Project rebuilt successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 Total files: $(find dist -type f | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Dist size: $(du -sh dist | cut -f1)" >> $GITHUB_STEP_SUMMARY

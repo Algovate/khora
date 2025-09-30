@@ -1,0 +1,46 @@
+# Source files
+src/
+tsconfig.json
+
+# Tests
+tests/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Documentation (keep only README)
+docs/
+examples/
+REFACTORING.md
+MIGRATION.md
+MCP_INTEGRATION.md
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+
+# Build artifacts
+*.map
+*.tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+logs/
+tmp/
+.cache/
+
+# Lock files (keep package.json)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Assets
+assets/
+scripts/

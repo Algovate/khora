@@ -1,15 +1,8 @@
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
-import { getApiKey } from '../core/config.js';
+import { createModel } from './modelFactory.js';
 
-// 创建 AI 模型
-export function createModel(modelName: string = 'gemini-2.5-flash'): ChatGoogleGenerativeAI {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error('Missing API key. Set GOOGLE_API_KEY or run login.');
-  }
-  return new ChatGoogleGenerativeAI({ model: modelName, apiKey });
-}
+// Re-export for backward compatibility
+export { createModel } from './modelFactory.js';
 
 // 基础聊天模型调用（无 MCP 工具）
 export async function invokeChatModel(messages: BaseMessage[], modelName?: string): Promise<BaseMessage> {

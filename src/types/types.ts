@@ -12,6 +12,7 @@ export type SessionMessage = {
 
 export type AppConfig = {
   apiKey?: string;
+  model?: string;
   mcpServers?: MCPServerConfig[];
 };
 

@@ -1,6 +1,6 @@
 import { generateCode, generateCodeWithProgress, CodeGenProgress, listGeneratedProjects, cleanGeneratedProjects } from './generator.js';
-import { CodeGenType } from './constants.js';
-import { saveSessionToFile, getMCPServers, addMCPServer, removeMCPServer, setMCPServers } from './config.js';
+import { CodeGenType, AVAILABLE_CHAT_MODELS } from './constants.js';
+import { saveSessionToFile, getMCPServers, addMCPServer, removeMCPServer, setMCPServers, getModel, setModel } from './config.js';
 import { CommandContext, CommandResult } from '../types/types.js';
 import { MCPManager } from '../mcp/mcp.js';
 
@@ -94,6 +94,12 @@ export class CommandHandler {
       case 'mcp-remove':
         return this.handleMCPRemove(args);
 
+      case 'set-model':
+        return this.handleSetModel(args);
+
+      case 'get-config':
+        return this.handleGetConfig();
+
       default:
         return false;
     }
@@ -134,6 +140,11 @@ export class CommandHandler {
         '/mcp-call <tool> [args] - Call MCP tool\n' +
         '/mcp-add <config>     - Add MCP server configuration\n' +
         '/mcp-remove <name>    - Remove MCP server configuration\n' +
+        '\n' +
+        '## ⚙️  Configuration Commands\n' +
+        '\n' +
+        '/set-model <model>     - Set the AI model to use\n' +
+        '/get-config            - Show current configuration\n' +
         '\n' +
         '## 📝 Examples\n' +
         '\n' +
@@ -704,6 +715,66 @@ export class CommandHandler {
         id: this.generateUniqueId('sys'),
         role: 'system',
         content: `❌ Remove error: ${message}`
+      }]);
+    }
+    return true;
+  }
+
+  private handleSetModel(args: string): boolean {
+    const { setMessages } = this.context;
+    const model = args.trim();
+    
+    if (!model) {
+      const currentModel = getModel();
+      const modelList = AVAILABLE_CHAT_MODELS.join('\n  - ');
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `Current model: ${currentModel}\n\nAvailable models (OpenRouter):\n  - ${modelList}\n\nUsage: /set-model <model-name>`
+      }]);
+      return true;
+    }
+
+    try {
+      setModel(model);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `✅ Model set to: ${model}`
+      }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `❌ Error setting model: ${message}`
+      }]);
+    }
+    return true;
+  }
+
+  private handleGetConfig(): boolean {
+    const { setMessages } = this.context;
+    try {
+      const model = getModel();
+      const apiKey = process.env.KHORA_API_KEY || process.env.OPENROUTER_API_KEY || 'Not set';
+      const apiKeyDisplay = apiKey !== 'Not set' ? `${apiKey.substring(0, 8)}...` : apiKey;
+      
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `⚙️  Current Configuration:\n\n` +
+          `Provider: OpenRouter\n` +
+          `Model: ${model}\n` +
+          `API Key: ${apiKeyDisplay}\n\n` +
+          `Use /set-model to change the model.`
+      }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMessages(prev => [...prev, {
+        id: this.generateUniqueId('sys'),
+        role: 'system',
+        content: `❌ Error getting config: ${message}`
       }]);
     }
     return true;
